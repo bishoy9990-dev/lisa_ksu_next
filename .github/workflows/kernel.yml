@@ -1,52 +1,36 @@
 name: Build Lisa KSU-Next Kernel
-
 on: workflow_dispatch
-
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Install Dependencies
+      - uses: actions/checkout@v4
+      - name: Setup Env
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential flex git zip curl libssl-dev libelf-dev
-          
-      - name: Clone Kernel Source
+          sudo apt-get install -y git bc bison flex libssl-dev libelf-dev build-essential
+      - name: Clone Kernel
         run: |
-          git clone https://github.com/LineageOS/android_kernel_xiaomi_sm8350 -b lineage-18.1 --depth=1 kernel
+          git clone https://github.com/mistrmochov/android_kernel_xiaomi_lisa -b lineage-20 --depth=1 kernel
           cd kernel
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
-          echo "CONFIG_KSU=y" >> arch/arm64/configs/vendor/lisa_defconfig
-          echo "CONFIG_KPROBES=y" >> arch/arm64/configs/vendor/lisa_defconfig
-          echo "CONFIG_HAVE_KPROBES=y" >> arch/arm64/configs/vendor/lisa_defconfig
-          echo "CONFIG_KPROBE_EVENTS=y" >> arch/arm64/configs/vendor/lisa_defconfig
-
-      - name: Clone Clang
+      - name: Setup Clang
         run: |
-          mkdir clang
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12L-release/clang-r416183b.tar.gz -O clang.tar.gz
-          tar -xzf clang.tar.gz -C clang/
-
-      - name: Build Kernel
+          git clone https://github.com/kdrag0n/proton-clang --depth=1 --single-branch clang
+      - name: Build
         run: |
           cd kernel
           export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
           export ARCH=arm64
-          export SUBARCH=arm64
-          export KBUILD_BUILD_USER=builder
-          export KBUILD_BUILD_HOST=github
           make O=out vendor/lisa_defconfig
-          make -j$(nproc --all) O=out CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM=1
-
-      - name: Pack AnyKernel3
+          make -j$(nproc) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM=1
+      - name: Package
         run: |
-          git clone https://github.com/osm0sis/AnyKernel3 -b master --depth=1 AnyKernel3
+          git clone https://github.com/osm0sis/AnyKernel3 AnyKernel3
           cp kernel/out/arch/arm64/boot/Image AnyKernel3/
-          cd AnyKernel3
-          zip -r9 ../Lisa-KSU-Next-Kernel.zip * -x .git README.md *placeholder
-
-      - name: Upload Kernel
+          cd AnyKernel3 && zip -r9 ../Lisa-KSU-Next.zip * -x .git*
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: Lisa-KSU-Next-Kernel
-          path: Lisa-KSU-Next-Kernel.zip
+          path: Lisa-KSU-Next.zip
